@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Water Meter Tracker</title>
+<style>
+:root{--bg:#f5f7fa;--card:#fff;--text:#1b2733;--muted:#6a7a8a;--line:#dde4ea;--accent:#1a7fd4;--ok:#1f9d55;--warn:#d98a00;--bad:#d63b3b;--okbg:#e5f6ec;--warnbg:#fff3d9;--badbg:#fde6e6;--nobg:#eaf0f6;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);color-scheme:light}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f161d;--card:#18212a;--text:#e6edf3;--muted:#8fa1b2;--line:#2a3743;--accent:#4da3ee;--ok:#3ec97c;--warn:#f0b13a;--bad:#f06a6a;--okbg:#14301f;--warnbg:#3a2e12;--badbg:#3c1b1b;--nobg:#1f2c38;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0f161d;--card:#18212a;--text:#e6edf3;--muted:#8fa1b2;--line:#2a3743;--accent:#4da3ee;--ok:#3ec97c;--warn:#f0b13a;--bad:#f06a6a;--okbg:#14301f;--warnbg:#3a2e12;--badbg:#3c1b1b;--nobg:#1f2c38;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:760px;margin:0 auto;padding:16px}
+h1{font-size:1.4rem;margin:4px 0 14px}
+h2{font-size:1rem;margin:0 0 10px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:14px}
+.banner{border-radius:12px;padding:14px;margin-bottom:14px;border:1px solid var(--line)}
+.banner b{display:block;font-size:1.05rem;margin-bottom:2px}
+.b-ok{background:var(--okbg);border-color:var(--ok)}.b-warn{background:var(--warnbg);border-color:var(--warn)}.b-bad{background:var(--badbg);border-color:var(--bad)}.b-none{background:var(--nobg)}
+.stats{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:14px}
+@media(min-width:560px){.stats{grid-template-columns:repeat(4,1fr)}}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.stat span{display:block;color:var(--muted);font-size:.78rem}
+.stat strong{font-size:1.15rem}
+form{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+label{font-size:.8rem;color:var(--muted);display:block;margin-bottom:3px}
+input,select,textarea{width:100%;padding:9px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text);font:inherit}
+.full{grid-column:1/-1}
+button{font:inherit;padding:9px 14px;border-radius:8px;border:1px solid var(--accent);background:var(--accent);color:#fff;cursor:pointer}
+button.sec{background:transparent;color:var(--accent)}
+button.del{background:transparent;color:var(--bad);border-color:var(--bad);padding:4px 8px;font-size:.8rem}
+button.sm{padding:4px 8px;font-size:.8rem}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:end}
+.scroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:.88rem;min-width:520px}
+th,td{text-align:left;padding:7px 6px;border-bottom:1px solid var(--line);white-space:nowrap}
+th{color:var(--muted);font-weight:600;font-size:.75rem}
+.pill{padding:2px 8px;border-radius:99px;font-size:.75rem;font-weight:600}
+.p-ok{background:var(--okbg);color:var(--ok)}.p-warn{background:var(--warnbg);color:var(--warn)}.p-bad{background:var(--badbg);color:var(--bad)}.p-none{background:var(--nobg);color:var(--muted)}
+.muted{color:var(--muted);font-size:.85rem}
+.err{color:var(--bad);font-size:.85rem;min-height:1.2em}
+svg text{fill:var(--muted);font-size:10px}
+details summary{cursor:pointer;font-weight:600}
+ul{padding-left:20px;margin:8px 0}
+</style>
+</head>
+<body>
+<main>
+<h1>💧 Water Meter Tracker</h1>
+<div id="banner"></div>
+<div class="stats" id="stats"></div>
+
+<div class="card">
+  <h2 id="formTitle">Add a reading</h2>
+  <form id="f">
+    <div><label for="d">Date</label><input type="date" id="d" required></div>
+    <div><label for="v">Meter reading (<span class="u"></span>)</label><input type="number" id="v" step="any" min="0" inputmode="decimal" required></div>
+    <div class="full"><label for="n">Note (optional)</label><input type="text" id="n" maxlength="120" placeholder="e.g. guests staying, filled pool"></div>
+    <div class="full err" id="err"></div>
+    <div class="full row"><button type="submit" id="saveBtn">Save reading</button><button type="button" class="sec" id="cancelEdit" hidden>Cancel edit</button></div>
+  </form>
+</div>
+
+<div class="card">
+  <h2>Daily use per interval</h2>
+  <div class="scroll"><div id="chart"></div></div>
+  <div class="muted">Dashed line = your typical daily use (median of the preceding readings). Red/amber bars are above your alert threshold.</div>
+</div>
+
+<div class="card">
+  <h2>Readings</h2>
+  <div class="scroll"><table id="tbl"></table></div>
+</div>
+
+<div class="card">
+  <h2>Settings</h2>
+  <div class="row">
+    <div><label for="unit">Meter unit</label><select id="unit"><option>kL</option><option>m³</option><option>L</option><option>gal</option></select></div>
+    <div><label for="thr">Alert when daily use is above typical by (%)</label><input type="number" id="thr" min="5" max="300" step="5" value="30"></div>
+  </div>
+</div>
+
+<div class="card">
+  <details>
+    <summary>Backup / restore</summary>
+    <p class="muted">Data is saved in this browser only. Copy the text below to back it up, or paste a backup and tap Import.</p>
+    <textarea id="bk" rows="4"></textarea>
+    <div class="row" style="margin-top:8px"><button class="sec sm" id="exp">Show backup</button><button class="sm" id="imp">Import</button><button class="del" id="wipe">Delete all data</button></div>
+    <div class="muted" id="bkmsg"></div>
+  </details>
+</div>
+
+<div class="card">
+  <details>
+    <summary>Confirming a leak</summary>
+    <ul class="muted">
+      <li>Turn off every tap and appliance that uses water, then note the meter. Check again after 1–2 hours without using any water. Any change suggests a leak.</li>
+      <li>Many meters have a small spinning dial or triangle that moves when any water flows, even a slow drip.</li>
+      <li>Common culprits: running toilet cisterns, dripping taps, irrigation, and underground pipe leaks.</li>
+      <li>Take readings at about the same time of day for the most consistent results.</li>
+    </ul>
+  </details>
+</div>
+</main>
+
+<script>
+(function(){
+"use strict";
+var KEY="waterTracker.v1";
+var S={readings:[],settings:{unit:"kL",threshold:30}};
+var editId=null,pendingDel=null;
+var $=function(id){return document.getElementById(id)};
+function load(){try{var r=localStorage.getItem(KEY);if(r){var p=JSON.parse(r);if(p&&Array.isArray(p.readings)){S.readings=p.readings;if(p.settings)S.settings=Object.assign(S.settings,p.settings)}}}catch(e){}}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
+function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}
+function fmt(x,dp){if(x==null||isNaN(x))return"–";return String(+x.toFixed(dp==null?3:dp))}
+function dayNum(d){return Date.parse(d)/864e5}
+function median(a){if(!a.length)return null;var b=a.slice().sort(function(x,y){return x-y}),m=b.length>>1;return b.length%2?b[m]:(b[m-1]+b[m])/2}
+function today(){var t=new Date();return t.getFullYear()+"-"+String(t.getMonth()+1).padStart(2,"0")+"-"+String(t.getDate()).padStart(2,"0")}
+function shortDate(d){var p=d.split("-");return p[2]+"/"+p[1]}
+
+function compute(){
+  var rs=S.readings.slice().sort(function(a,b){return a.date<b.date?-1:a.date>b.date?1:a.value-b.value});
+  var iv=[],hist=[],thr=1+(+S.settings.threshold||30)/100;
+  for(var i=1;i<rs.length;i++){
+    var days=dayNum(rs[i].date)-dayNum(rs[i-1].date),use=rs[i].value-rs[i-1].value;
+    var o={id:rs[i].id,date:rs[i].date,from:rs[i-1].date,days:days,use:use,rate:null,base:null,ratio:null,status:"none",invalid:false};
+    if(days<=0||use<0){o.invalid=true;iv.push(o);continue}
+    o.rate=use/days;
+    var prior=hist.slice(-8);
+    if(prior.length>=3){
+      o.base=median(prior);
+      o.ratio=o.base>0?o.rate/o.base:(o.rate>0?Infinity:1);
+      o.status=o.ratio>=2?"high":o.ratio>=thr?"elevated":"normal";
+    }
+    hist.push(o.rate);iv.push(o);
+  }
+  return {rs:rs,iv:iv,valid:iv.filter(function(x){return !x.invalid})};
+}
+
+function render(){
+  var c=compute(),u=S.settings.unit;
+  document.querySelectorAll(".u").forEach(function(e){e.textContent=u});
+  $("unit").value=u;$("thr").value=S.settings.threshold;
+  var v=c.valid,last=v[v.length-1],prev=v[v.length-2];
+  // banner
+  var cls="b-none",title="Add at least 4 readings to start leak detection",msg="Log your meter reading regularly (daily or weekly). Once there are enough intervals, we’ll compare each new interval with your typical use.";
+  if(last&&last.status!=="none"){
+    var flagged=function(x){return x&&(x.status==="elevated"||x.status==="high")};
+    var pct=Math.round((last.ratio-1)*100);
+    if(flagged(last)&&flagged(prev)){cls="b-bad";title="⚠️ Sustained increase – possible leak";msg="The last two intervals were both above normal (latest "+fmt(last.rate)+" "+u+"/day vs typical "+fmt(last.base)+"). Run a no-water-use meter check soon.";}
+    else if(flagged(last)){cls=last.status==="high"?"b-bad":"b-warn";title=(last.status==="high"?"High":"Elevated")+" use in the latest interval";msg=fmt(last.rate)+" "+u+"/day is "+(isFinite(pct)?pct+"% above":"well above")+" your typical "+fmt(last.base)+". Could be a one-off (guests, watering) – take another reading to see if it persists.";}
+    else{cls="b-ok";title="✅ Usage looks normal";msg="Latest "+fmt(last.rate)+" "+u+"/day vs typical "+fmt(last.base)+".";}
+  }
+  var bad=c.iv.filter(function(x){return x.invalid}).length;
+  $("banner").innerHTML='<div class="banner '+cls+'"><b>'+title+'</b>'+esc(msg)+(bad?'<div class="muted" style="margin-top:6px">'+bad+' interval(s) skipped: reading lower than previous or same date. Check the table.</div>':'')+'</div>';
+  // stats
+  var tot=0,td=0;v.forEach(function(x){tot+=x.use;td+=x.days});
+  var avg=td?tot/td:null,recent=median(v.slice(-8).map(function(x){return x.rate}));
+  $("stats").innerHTML=[["Latest daily use",last?fmt(last.rate)+" "+u:"–"],["Typical daily use",recent!=null?fmt(recent)+" "+u:"–"],["Overall average",avg!=null?fmt(avg)+" "+u+"/day":"–"],["Est. per 30 days",recent!=null?fmt(recent*30,1)+" "+u:"–"]].map(function(s){return'<div class="stat"><span>'+s[0]+'</span><strong>'+s[1]+'</strong></div>'}).join("");
+  chart(v);table(c);
+}
+
+function chart(v){
+  var d=v.slice(-24),el=$("chart");
+  if(!d.length){el.innerHTML='<div class="muted">Add two or more readings to see the chart.</div>';return}
+  var bw=26,gap=8,W=Math.max(320,d.length*(bw+gap)+50),H=210,pt=14,pb=36,pl=40;
+  var mx=Math.max.apply(null,d.map(function(x){return Math.max(x.rate,x.base||0)}))||1;mx*=1.15;
+  var y=function(val){return pt+(H-pt-pb)*(1-val/mx)};
+  var s='<svg viewBox="0 0 '+W+' '+H+'" width="'+W+'" height="'+H+'" role="img" aria-label="Daily water use per interval">';
+  for(var g=0;g<=3;g++){var gv=mx*g/3,gy=y(gv);s+='<line x1="'+pl+'" x2="'+W+'" y1="'+gy+'" y2="'+gy+'" stroke="var(--line)"/><text x="'+(pl-4)+'" y="'+(gy+3)+'" text-anchor="end">'+fmt(gv,2)+'</text>'}
+  var pts=[];
+  d.forEach(function(x,i){
+    var bx=pl+8+i*(bw+gap),col=x.status==="high"?"var(--bad)":x.status==="elevated"?"var(--warn)":x.status==="normal"?"var(--ok)":"var(--muted)";
+    s+='<rect x="'+bx+'" y="'+y(x.rate)+'" width="'+bw+'" height="'+(H-pb-y(x.rate))+'" rx="3" fill="'+col+'"><title>'+shortDate(x.date)+': '+fmt(x.rate)+'/day</title></rect>';
+    s+='<text x="'+(bx+bw/2)+'" y="'+(H-pb+13)+'" text-anchor="middle">'+shortDate(x.date)+'</text>';
+    if(x.base!=null)pts.push([bx+bw/2,y(x.base)]);
+  });
+  if(pts.length>1)s+='<polyline fill="none" stroke="var(--accent)" stroke-width="2" stroke-dasharray="5 4" points="'+pts.map(function(p){return p[0]+","+p[1]}).join(" ")+'"/>';
+  el.innerHTML=s+'</svg>';
+}
+
+function table(c){
+  var u=S.settings.unit,byId={};c.iv.forEach(function(x){byId[x.id]=x});
+  var h='<tr><th>Date</th><th>Reading</th><th>Used</th><th>Per day</th><th>vs typical</th><th>Note</th><th></th></tr>';
+  c.rs.slice().reverse().forEach(function(r){
+    var x=byId[r.id],st='<span class="pill p-none">first</span>',used="–",rate="–",vs="";
+    if(x){
+      if(x.invalid){st='<span class="pill p-bad">check</span>';used=fmt(x.use);}
+      else{used=fmt(x.use)+" "+u;rate=fmt(x.rate);
+        var m={normal:["p-ok","normal"],elevated:["p-warn","elevated"],high:["p-bad","high"],none:["p-none","n/a"]}[x.status];
+        st='<span class="pill '+m[0]+'">'+m[1]+'</span>';
+        vs=x.ratio!=null&&isFinite(x.ratio)?(x.ratio>=1?"+":"")+Math.round((x.ratio-1)*100)+"% ":"";}
+    }
+    h+='<tr><td>'+r.date+'</td><td>'+fmt(r.value)+'</td><td>'+used+'</td><td>'+rate+'</td><td>'+vs+st+'</td><td style="white-space:normal">'+esc(r.note)+'</td><td><button class="sec sm" data-e="'+r.id+'">Edit</button> <button class="del" data-x="'+r.id+'">'+(pendingDel===r.id?"Sure?":"Delete")+'</button></td></tr>';
+  });
+  if(!c.rs.length)h+='<tr><td colspan="7" class="muted">No readings yet.</td></tr>';
+  $("tbl").innerHTML=h;
+}
+
+$("f").addEventListener("submit",function(e){
+  e.preventDefault();
+  var date=$("d").value,val=parseFloat($("v").value),note=$("n").value.trim();
+  if(!date||isNaN(val)||val<0){$("err").textContent="Enter a valid date and reading.";return}
+  var dup=S.readings.some(function(r){return r.date===date&&r.id!==editId});
+  if(dup){$("err").textContent="There’s already a reading for that date. Edit it instead.";return}
+  if(editId){S.readings=S.readings.map(function(r){return r.id===editId?{id:r.id,date:date,value:val,note:note}:r})}
+  else S.readings.push({id:"r"+Date.now()+Math.floor(Math.random()*1000),date:date,value:val,note:note});
+  save();resetForm();render();
+});
+function resetForm(){editId=null;$("f").reset();$("d").value=today();$("err").textContent="";$("formTitle").textContent="Add a reading";$("cancelEdit").hidden=true;$("saveBtn").textContent="Save reading"}
+$("cancelEdit").onclick=resetForm;
+$("tbl").addEventListener("click",function(e){
+  var b=e.target.closest("button");if(!b)return;
+  if(b.dataset.e){var r=S.readings.filter(function(x){return x.id===b.dataset.e})[0];if(!r)return;editId=r.id;$("d").value=r.date;$("v").value=r.value;$("n").value=r.note||"";$("formTitle").textContent="Edit reading";$("cancelEdit").hidden=false;$("saveBtn").textContent="Update reading";$("f").scrollIntoView({behavior:"smooth"})}
+  if(b.dataset.x){if(pendingDel===b.dataset.x){S.readings=S.readings.filter(function(x){return x.id!==b.dataset.x});pendingDel=null;save()}else pendingDel=b.dataset.x;render()}
+});
+$("unit").onchange=function(){S.settings.unit=this.value;save();render()};
+$("thr").onchange=function(){var t=parseFloat(this.value);S.settings.threshold=isNaN(t)?30:Math.min(300,Math.max(5,t));save();render()};
+$("exp").onclick=function(){$("bk").value=JSON.stringify(S);$("bk").select();$("bkmsg").textContent="Copy this text and keep it somewhere safe."};
+$("imp").onclick=function(){
+  try{var p=JSON.parse($("bk").value);if(!p||!Array.isArray(p.readings))throw 0;
+    S.readings=p.readings.filter(function(r){return r&&r.date&&typeof r.value==="number"}).map(function(r,i){return{id:r.id||"i"+Date.now()+i,date:String(r.date),value:r.value,note:r.note||""}});
+    if(p.settings)S.settings=Object.assign(S.settings,p.settings);
+    save();render();$("bkmsg").textContent="Imported "+S.readings.length+" readings."}
+  catch(e){$("bkmsg").textContent="That doesn’t look like a valid backup."}
+};
+var wipeArm=false;
+$("wipe").onclick=function(){if(!wipeArm){wipeArm=true;this.textContent="Tap again to confirm";return}S.readings=[];save();wipeArm=false;this.textContent="Delete all data";render()};
+
+load();$("d").value=today();render();
+})();
+</script>
+</body>
+</html>
